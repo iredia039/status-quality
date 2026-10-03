@@ -1,0 +1,6 @@
+**/node_modules
+**/.env
+server/wa-auth
+server/uploads
+server/processed
+client/dist
