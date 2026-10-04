@@ -73,4 +73,9 @@ async function sendVideoAsDocument(jid, filePath) {
   });
 }
 
-module.exports = { startWhatsApp, resolveNumber, sendVideoAsDocument };
+function getSenderNumber() {
+  const id = sock?.user?.id || '';
+  return id.split(':')[0].split('@')[0] || null;
+}
+
+module.exports = { startWhatsApp, resolveNumber, sendVideoAsDocument, getSenderNumber };

@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { startWhatsApp, resolveNumber, sendVideoAsDocument } = require('./wa');
+const { startWhatsApp, resolveNumber, sendVideoAsDocument, getSenderNumber } = require('./wa');
 
 const PORT = process.env.PORT || 3001;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -26,23 +26,47 @@ let busy = false;
 
 const ID_PATTERN = /^[0-9a-f-]{36}$/;
 
-function runFfmpeg(input, output) {
-  return new Promise((resolve, reject) => {
-const args = [
-  '-i', input,
-  '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,unsharp=5:5:0.8:5:5:0.0,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
-  '-c:v', 'libx264',
-  '-preset', 'medium',
-  '-crf', '17',
-  '-profile:v', 'high',
-  '-pix_fmt', 'yuv420p',
-  '-c:a', 'aac',
-  '-b:a', '192k',
-  '-movflags', '+faststart',
-  '-y',
-  output
-];
+function probeBitrate(input) {
+  return new Promise((resolve) => {
+    const p = spawn('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=bit_rate',
+      '-of', 'default=nw=1:nk=1',
+      input
+    ]);
+    let out = '';
+    p.stdout.on('data', (chunk) => (out += chunk));
+    p.on('error', () => resolve(null)); // ffprobe missing: fall back to a default
+    p.on('close', () => {
+      const n = parseInt(out.trim(), 10);
+      resolve(Number.isFinite(n) ? n : null);
+    });
+  });
+}
 
+async function runFfmpeg(input, output) {
+  const inputBitrate = await probeBitrate(input);
+  // Never bigger than the original (within limits): floor 1.2 Mbps, ceiling 3 Mbps
+  const cap = Math.min(Math.max(inputBitrate || 2500000, 1200000), 3000000);
+
+  const args = [
+    '-i', input,
+    '-vf', 'scale=720:1280:force_original_aspect_ratio=decrease:flags=lanczos,unsharp=5:5:0.8:5:5:0.0,pad=720:1280:(ow-iw)/2:(oh-ih)/2',
+    '-c:v', 'libx264',
+    '-preset', 'medium',
+    '-crf', '22',
+    '-maxrate', String(cap),
+    '-bufsize', String(cap * 2),
+    '-profile:v', 'high',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-movflags', '+faststart',
+    '-y',
+    output
+  ];
+
+  return new Promise((resolve, reject) => {
     const ff = spawn('ffmpeg', args);
     let errorTail = '';
     ff.stderr.on('data', (chunk) => {
@@ -177,7 +201,7 @@ app.post('/api/send/:id', async (req, res) => {
 
     await sendVideoAsDocument(jid, job.output);
     sendLog.set(req.ip, [...recent, now]);
-    res.json({ ok: true });
+res.json({ ok: true, sender: getSenderNumber() });
   } catch (err) {
     console.error('Send failed:', err.message);
     res.status(500).json({ error: 'Could not send right now. Try again shortly.' });

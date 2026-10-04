@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 const MAX_MB = 300;
 
+const primaryBtn =
+  'w-full rounded-2xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 px-6 py-4 text-base font-bold text-white shadow-lg shadow-fuchsia-500/25 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40';
+const greenBtn =
+  'flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-600 px-6 py-4 text-base font-bold text-white shadow-lg shadow-green-500/25 transition active:scale-[0.98]';
+const ghostBtn =
+  'w-full rounded-2xl border border-white/15 bg-white/5 px-6 py-4 text-center text-base font-semibold text-white transition active:scale-[0.98]';
+
 // fetch() can't report upload progress, so uploads use XMLHttpRequest
 function uploadVideo(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -48,6 +55,7 @@ export default function App() {
   });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [sender, setSender] = useState(null);
   const [sendError, setSendError] = useState('');
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -70,6 +78,7 @@ export default function App() {
     setJobId(null);
     setMessage('');
     setSent(false);
+    setSender(null);
     setSendError('');
   }
 
@@ -143,6 +152,7 @@ export default function App() {
       } catch {
         /* storage blocked: ignore */
       }
+      setSender(data.sender || null);
       setSent(true);
     } catch (err) {
       setSendError(err.message);
@@ -158,69 +168,88 @@ export default function App() {
     setProgress(0);
     setMessage('');
     setSent(false);
+    setSender(null);
     setSendError('');
   }
 
   const busy = phase === 'uploading' || phase === 'processing';
-
-  // classes used in a few places, kept here so I don't repeat them
-  const focusRing = 'focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-lilac';
-  const gradientBtn = 'bg-gradient-to-r from-coral to-violet text-white';
+  const sizeLabel = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
 
   return (
-    <main className="min-h-screen bg-void font-sans text-soft">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-8">
-        <header className="mb-8">
-          <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
-            Post your video without the blur.
+    <main className="relative min-h-screen overflow-hidden bg-neutral-950 font-sans text-neutral-100">
+      {/* soft glow behind the header */}
+      <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-fuchsia-600/25 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/2 -right-20 h-56 w-56 rounded-full bg-violet-600/15 blur-3xl" />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-10">
+        <header className="mb-8 text-center">
+          <h1 className="font-display text-4xl font-extrabold leading-tight tracking-tight">
+            <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
+              Sharp Status
+            </span>
           </h1>
-          <p className="mt-3 max-w-[34ch] text-base text-soft/60">
-            Pick a video, wait for it to finish, then send it to your WhatsApp.
+          <p className="mx-auto mt-2 max-w-[30ch] text-sm text-neutral-400">
+            Post videos to your WhatsApp status without the blur.
           </p>
         </header>
 
-        {/* The 9:16 frame is the size of a WhatsApp status. It gets the glow, everything else stays quiet */}
-        <div className="relative mx-auto w-full max-w-[260px]">
-          {/* blurred gradient behind the frame = the glow */}
-          <div
-            className={`absolute -inset-2 rounded-[2.5rem] bg-gradient-to-br from-coral to-violet blur-2xl transition-opacity ${
-              busy ? 'animate-pulse opacity-50' : 'opacity-30'
-            }`}
-            aria-hidden="true"
-          />
-          {/* thin gradient border */}
-          <div className="relative rounded-[2.1rem] bg-gradient-to-br from-coral via-violet to-violet p-[2px]">
-            <button
-              type="button"
-              onClick={() => !busy && inputRef.current?.click()}
-              disabled={busy}
-              className={`block aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-panel disabled:cursor-not-allowed ${focusRing}`}
-              aria-label={file ? 'Choose a different video' : 'Choose a video'}
-            >
-              {previewUrl ? (
-                <video
-                  src={previewUrl}
-                  className="h-full w-full object-cover"
-                  muted
-                  playsInline
-                  loop
-                  autoPlay
-                />
-              ) : (
-                <span className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                  <span className="font-display text-2xl font-extrabold">Tap to choose a video</span>
-                  <span className="text-sm text-soft/50">From your gallery</span>
-                </span>
-              )}
-            </button>
+        {/* Video picker: compact card, not a big frame */}
+        {!file ? (
+          <button
+            type="button"
+            onClick={() => !busy && inputRef.current?.click()}
+            disabled={busy}
+            className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-9 text-center transition active:scale-[0.98] disabled:opacity-50"
+            aria-label="Choose a video"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 shadow-lg shadow-fuchsia-500/30">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-6 w-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 16V4m0 0L7 9m5-5 5 5" />
+                <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+              </svg>
+            </span>
+            <span className="text-base font-semibold">Choose a video</span>
+            <span className="text-xs text-neutral-500">Tap to pick one from your phone</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <video
+              src={previewUrl}
+              className="aspect-[9/16] w-16 shrink-0 rounded-xl bg-black object-cover"
+              muted
+              playsInline
+              loop
+              autoPlay
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{file.name}</p>
+              <p className="mt-0.5 text-xs text-neutral-400">{sizeLabel}</p>
+              <button
+                type="button"
+                onClick={() => !busy && inputRef.current?.click()}
+                disabled={busy}
+                className="mt-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-200 transition active:scale-95 disabled:opacity-40"
+              >
+                Change video
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <button
           type="button"
           onClick={() => !busy && browseRef.current?.click()}
           disabled={busy}
-          className="mx-auto mt-6 text-base font-medium text-lilac underline underline-offset-4 disabled:opacity-40"
+          className="mx-auto mt-3 text-xs text-neutral-500 underline underline-offset-4 disabled:opacity-40"
         >
           Can't find your video? Browse all files
         </button>
@@ -236,22 +265,17 @@ export default function App() {
 
         <section className="mt-8" aria-live="polite">
           {phase === 'idle' && (
-            <button
-              type="button"
-              onClick={start}
-              disabled={!file}
-              className={`w-full rounded-2xl ${gradientBtn} px-6 py-4 text-lg font-bold shadow-lg shadow-violet/20 transition active:scale-[0.98] disabled:bg-none disabled:bg-panel disabled:text-soft/30 disabled:shadow-none ${focusRing}`}
-            >
+            <button type="button" onClick={start} disabled={!file} className={primaryBtn}>
               Make it sharp
             </button>
           )}
 
           {phase === 'uploading' && (
-            <div>
-              <p className="mb-2 font-bold">Uploading your video: {progress}%</p>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="mb-3 text-sm font-semibold">Uploading your video: {progress}%</p>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-coral to-violet transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-all"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -259,26 +283,25 @@ export default function App() {
           )}
 
           {phase === 'processing' && (
-            <div>
-              <p className="mb-2 font-bold">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="mb-3 text-sm font-semibold">
                 {queuePos > 0
                   ? `Waiting in line. You are number ${queuePos}.`
                   : 'Sharpening your video. This can take a few minutes.'}
               </p>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-coral to-violet" />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-violet-500 to-pink-500" />
               </div>
-              <p className="mt-3 text-sm text-soft/50">Keep this page open.</p>
+              <p className="mt-3 text-xs text-neutral-500">Keep this page open.</p>
             </div>
           )}
 
           {phase === 'done' && (
             <div className="flex flex-col gap-3">
-              <p className="font-display text-2xl font-extrabold">Your video is ready.</p>
-
               {!sent ? (
                 <>
-                  <label htmlFor="wa-number" className="text-sm font-bold">
+                  <p className="text-lg font-bold">Your video is ready.</p>
+                  <label htmlFor="wa-number" className="text-xs font-semibold text-neutral-400">
                     Your WhatsApp number
                   </label>
                   <input
@@ -289,46 +312,59 @@ export default function App() {
                     placeholder="2348012345678"
                     value={number}
                     onChange={(e) => setNumber(e.target.value)}
-                    className={`w-full rounded-2xl border border-line bg-panel px-4 py-4 text-lg text-soft placeholder:text-soft/30 ${focusRing}`}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-base text-white placeholder:text-neutral-600 focus:border-fuchsia-400 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={sendToWhatsApp}
                     disabled={sending || number.replace(/\D/g, '').length < 10}
-                    className={`w-full rounded-2xl ${gradientBtn} px-6 py-4 text-lg font-bold shadow-lg shadow-violet/20 transition active:scale-[0.98] disabled:opacity-40 ${focusRing}`}
+                    className={primaryBtn}
                   >
                     {sending ? 'Sending...' : 'Send to my WhatsApp'}
                   </button>
                   {sendError && (
-                    <p className="font-medium text-red-400" role="alert">
+                    <p className="text-sm font-medium text-red-400" role="alert">
                       {sendError}
                     </p>
                   )}
                 </>
               ) : (
-                <div className="rounded-2xl border border-line bg-panel p-4">
-                  <p className="mb-2 font-bold">Sent! Now open WhatsApp:</p>
-                  <ol className="list-decimal space-y-1 pl-5 text-base text-soft/80">
-                    <li>Open the new chat with your video.</li>
-                    <li>Tap and hold the video, then forward it to My status.</li>
-                  </ol>
-                </div>
+                <>
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+                    <p className="mb-2 flex items-center gap-2 text-base font-bold text-emerald-300">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-sm text-neutral-950">
+                        ✓
+                      </span>
+                      Sent to your WhatsApp
+                    </p>
+                    <p className="text-sm text-neutral-300">
+                      Open the chat, tap and hold the video, then forward it to My status.
+                    </p>
+                  </div>
+                  {sender && (
+                    <a
+                      href={`https://wa.me/${sender}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={greenBtn}
+                    >
+                      Open WhatsApp
+                    </a>
+                  )}
+                </>
               )}
 
-              <a
-                href={`/api/file/${jobId}?download=1`}
-                className={`w-full rounded-2xl border border-line bg-panel px-6 py-4 text-center text-lg font-bold transition active:scale-[0.98] ${focusRing}`}
-              >
+              <a href={`/api/file/${jobId}?download=1`} className={ghostBtn}>
                 Download video
               </a>
               <button
                 type="button"
                 onClick={startOver}
-                className="py-2 text-base font-medium text-lilac underline underline-offset-4"
+                className="py-2 text-sm font-medium text-fuchsia-300 underline underline-offset-4"
               >
                 Sharpen another video
               </button>
-              <p className="text-sm text-soft/50">
+              <p className="text-center text-xs text-neutral-600">
                 Your video is deleted from the server after 30 minutes.
               </p>
             </div>
@@ -336,19 +372,17 @@ export default function App() {
 
           {phase === 'error' && (
             <div className="flex flex-col gap-3">
-              <p className="font-bold text-red-400">{message || 'Something went wrong.'}</p>
-              <button
-                type="button"
-                onClick={startOver}
-                className={`w-full rounded-2xl border border-line bg-panel px-6 py-4 text-lg font-bold ${focusRing}`}
-              >
+              <p className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm font-medium text-red-300">
+                {message || 'Something went wrong.'}
+              </p>
+              <button type="button" onClick={startOver} className={primaryBtn}>
                 Start over
               </button>
             </div>
           )}
 
           {message && phase !== 'error' && (
-            <p className="mt-4 font-medium text-red-400" role="alert">
+            <p className="mt-4 text-sm font-medium text-red-400" role="alert">
               {message}
             </p>
           )}
