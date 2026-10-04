@@ -53,7 +53,7 @@ async function runFfmpeg(input, output) {
     '-i', input,
     '-vf', 'scale=720:1280:force_original_aspect_ratio=decrease:flags=lanczos,unsharp=5:5:0.8:5:5:0.0,pad=720:1280:(ow-iw)/2:(oh-ih)/2',
     '-c:v', 'libx264',
-    '-preset', 'medium',
+    '-preset', 'veryfast',
     '-crf', '22',
     '-maxrate', String(cap),
     '-bufsize', String(cap * 2),
